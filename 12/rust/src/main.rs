@@ -7,85 +7,62 @@ use std::io::{BufRead, BufReader};
 struct Record {
     conditions: String,
     rules: Vec<usize>,
+    cache: HashMap<(usize, usize), i64>,
 }
 
-fn simple_count(conditions: &str, rules: &[usize]) -> i64 {
-    if rules.len() == 0 {
-        if conditions.contains('#') {
-            return 0;
+impl Record {
+    fn new(conditions: String, rules: Vec<usize>) -> Record {
+        Record {
+            conditions,
+            rules,
+            cache: HashMap::new(),
         }
-        return 1;
     }
-    if conditions.len() == 0 {
-        if rules.len() == 0 {
+
+    fn count_from(&mut self, cond_index: usize, rule_index: usize) -> i64 {
+        // Check if the result is already cached
+        if let Some(&result) = self.cache.get(&(cond_index, rule_index)) {
+            return result;
+        }
+
+        // Calculate the result
+        if rule_index == self.rules.len() {
+            if cond_index < self.conditions.len() && self.conditions[cond_index..].contains('#') {
+                return 0;
+            }
             return 1;
         }
-        return 0;
-    }
-    let mut counter = 0;
-    let condition = conditions.chars().next().unwrap();
-    let rule = rules[0];
-
-    // Assume '?' is a '.'
-    if condition == '.' || condition == '?' {
-        counter += simple_count(&conditions[1..], rules);
-    }
-    // Assume '?' is a '#'
-    if condition == '#' || condition == '?' {
-        let enough_chars = rule <= conditions.len();
-        let no_dot_in_range = conditions.chars().take(rule).all(|c| c != '.');
-        let would_consume_all = rule == conditions.len();
-        let no_spring_after_range = conditions.chars().nth(rule).unwrap_or('#') != '#';
-        if enough_chars && no_dot_in_range && (would_consume_all || no_spring_after_range) {
-            counter += simple_count(conditions.get(rule + 1..).unwrap_or(""), &rules[1..]);
-        }
-    }
-    counter
-}
-
-fn memoized_count(
-    conditions: &str,
-    rules: &[usize],
-    cache: &mut HashMap<(String, Vec<usize>), i64>,
-) -> i64 {
-    // Check if the result is already cached
-    if let Some(&result) = cache.get(&(conditions.to_string(), rules.to_vec())) {
-        return result;
-    }
-
-    // Calculate the result
-    if rules.len() == 0 {
-        if conditions.contains('#') {
+        if cond_index >= self.conditions.len() {
+            if rule_index == self.rules.len() {
+                return 1;
+            }
             return 0;
         }
-        return 1;
-    }
-    if conditions.len() == 0 {
-        if rules.len() == 0 {
-            return 1;
-        }
-        return 0;
-    }
-    let mut counter = 0;
-    let condition = conditions.chars().next().unwrap();
-    let rule = rules[0];
 
-    // Assume '?' is a '.'
-    if condition == '.' || condition == '?' {
-        counter += memoized_count(&conditions[1..], rules, cache);
-    }
-    // Assume '?' is a '#'
-    if condition == '#' || condition == '?' {
-        let enough_chars = rule <= conditions.len();
-        let no_dot_in_range = conditions.chars().take(rule).all(|c| c != '.');
-        let would_consume_all = rule == conditions.len();
-        let no_spring_after_range = conditions.chars().nth(rule).unwrap_or('#') != '#';
-        if enough_chars && no_dot_in_range && (would_consume_all || no_spring_after_range) {
-            counter += memoized_count(conditions.get(rule + 1..).unwrap_or(""), &rules[1..], cache)
+        let mut counter = 0;
+        let condition = self.conditions.as_bytes()[cond_index] as char;
+        let rule = self.rules[rule_index];
+
+        // Assume '?' is a '.'
+        if condition == '.' || condition == '?' {
+            counter += self.count_from(cond_index + 1, rule_index);
         }
+        // Assume '?' is a '#'
+        if condition == '#' || condition == '?' {
+            if cond_index + rule <= self.conditions.len() // Enough chars available
+                && !self.conditions[cond_index..cond_index + rule].contains('.')
+            // No dot in range
+            {
+                let would_consume_all = cond_index + rule == self.conditions.len();
+                if would_consume_all || self.conditions.as_bytes()[cond_index + rule] as char != '#'
+                {
+                    counter += self.count_from(cond_index + rule + 1, rule_index + 1)
+                }
+            }
+        }
+        self.cache.insert((cond_index, rule_index), counter);
+        counter
     }
-    cache.insert((conditions.to_string(), rules.to_vec()), counter);
-    counter
 }
 
 fn main() {
@@ -102,25 +79,21 @@ fn main() {
             .split(",")
             .map(|s| s.parse::<usize>().unwrap())
             .collect();
-        records.push(Record {
-            conditions: conditions.to_string(),
-            rules: rules,
-        });
+        records.push(Record::new(conditions.to_string(), rules));
     }
 
     let part1: i64 = records
-        .iter()
-        .map(|record| simple_count(&record.conditions, &record.rules))
+        .iter_mut()
+        .map(|record| record.count_from(0, 0))
         .sum();
 
-    let mut cache: HashMap<(String, Vec<usize>), i64> = HashMap::new();
     let mut part2: i64 = 0;
     for record in records.iter() {
         let condition = std::iter::repeat(record.conditions.clone())
             .take(5)
             .collect::<Vec<String>>()
             .join("?");
-        part2 += memoized_count(&condition, &record.rules.repeat(5), &mut cache);
+        part2 += Record::new(condition, record.rules.repeat(5)).count_from(0, 0);
     }
     println!("Part 1 {:?}", part1);
     println!("Part 2 {:?}", part2);
