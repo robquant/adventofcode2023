@@ -1,4 +1,3 @@
-use hashbrown::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -7,24 +6,20 @@ use std::io::{BufRead, BufReader};
 struct Record {
     conditions: String,
     rules: Vec<usize>,
-    cache: HashMap<(usize, usize), i64>,
+    cache: Vec<i64>,
 }
 
 impl Record {
     fn new(conditions: String, rules: Vec<usize>) -> Record {
+        let cache_size = conditions.len() * rules.len();
         Record {
             conditions,
             rules,
-            cache: HashMap::new(),
+            cache: vec![-1; cache_size],
         }
     }
 
     fn count_from(&mut self, cond_index: usize, rule_index: usize) -> i64 {
-        // Check if the result is already cached
-        if let Some(&result) = self.cache.get(&(cond_index, rule_index)) {
-            return result;
-        }
-
         // Calculate the result
         if rule_index == self.rules.len() {
             if cond_index < self.conditions.len() && self.conditions[cond_index..].contains('#') {
@@ -37,6 +32,12 @@ impl Record {
                 return 1;
             }
             return 0;
+        }
+
+        // Check if the result is already cached
+        let result = self.cache[self.conditions.len() * rule_index + cond_index];
+        if result != -1 {
+            return result;
         }
 
         let mut counter = 0;
@@ -60,7 +61,7 @@ impl Record {
                 }
             }
         }
-        self.cache.insert((cond_index, rule_index), counter);
+        self.cache[self.conditions.len() * rule_index + cond_index] = counter;
         counter
     }
 }
