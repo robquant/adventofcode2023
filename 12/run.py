@@ -1,28 +1,43 @@
 from itertools import repeat
-from functools import cache
 
-@cache
 def count_arrangements(conditions, rules):
-    if not rules:
-        return 0 if "#" in conditions else 1
-    if not conditions:
-        return 1 if not rules else 0
 
-    result = 0
-    condition = conditions[0]
-    rule = rules[0]
+    cache = [None for _ in range(len(rules) * len(conditions))]
 
-    if condition in ".?":
-        result += count_arrangements(conditions[1:], rules)
-    if condition in "#?":
-        if (
-            rule <= len(conditions)
-            and "." not in conditions[: rule]
-            and (rule == len(conditions) or conditions[rule] != "#")
-        ):
-            result += count_arrangements(conditions[rule + 1 :], rules[1:])
+    def count_from(cond_index, rule_index):
+        nonlocal cache
 
-    return result
+        if rule_index == len(rules):
+            if cond_index < len(conditions) and "#" in conditions[cond_index:]:
+                return 0
+            return 1
+        if cond_index >= len(conditions):
+            if rule_index == len(rules):
+                return 1
+            return 0
+
+        result = cache[cond_index * len(rules) + rule_index]
+        if result is not None:
+            return result
+
+        result = 0
+        condition = conditions[cond_index]
+        rule = rules[rule_index]
+
+        if condition != "#":
+            result += count_from(cond_index +1 , rule_index)
+        if condition != ".":
+            if (
+                cond_index + rule <= len(conditions)
+                and "." not in conditions[cond_index : cond_index + rule]
+                and (cond_index + rule == len(conditions) or conditions[cond_index + rule] != "#")
+            ):
+                result += count_from(cond_index + rule + 1, rule_index + 1)
+
+        cache[cond_index * len(rules) + rule_index] = result
+        return result
+
+    return count_from(0, 0)
 
 if __name__ == "__main__":
     all_rules = []
