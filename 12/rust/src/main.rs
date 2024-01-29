@@ -45,11 +45,11 @@ impl Record {
         let rule = self.rules[rule_index];
 
         // Assume '?' is a '.'
-        if condition == '.' || condition == '?' {
+        if condition != '#' {
             counter += self.count_from(cond_index + 1, rule_index);
         }
         // Assume '?' is a '#'
-        if condition == '#' || condition == '?' {
+        if condition != '.' {
             if cond_index + rule <= self.conditions.len() // Enough chars available
                 && !self.conditions[cond_index..cond_index + rule].contains('.')
             // No dot in range
